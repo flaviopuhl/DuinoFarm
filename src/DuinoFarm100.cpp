@@ -95,9 +95,6 @@ Notes:
 // Uncomment the line below if you wish to register for IOT updates with an MQTT broker
 // #define USE_MQTT
 
-// Uncomment the line below if you wish to use a DHT sensor (Duino IoT beta)
-// #define USE_DHT
-
 /*+--------------------------------------------------------------------------------------+
  *| Global Variables                                                                     |
  *+--------------------------------------------------------------------------------------+ */
@@ -227,27 +224,6 @@ void SerializeAndPublish() {
 
 #endif
 
-/*
-#ifdef USE_DHT
-  
-  float temp = 0.0;
-  float hum = 0.0;
-  float temp_weight = 0.3; // 1 for absolute new value, 0-1 for smoothing the new reading with previous value
-  float temp_min_value = -20.0;
-  float temp_max_value = 70.0;
-  float hum_weight = 0.3; // 1 for absolute new value, 0-1 for smoothing the new reading with previous value
-  float hum_min_value = 0.1;
-  float hum_max_value = 100.0;
-    
-  // Install "DHT sensor library" if you get an error
-  #include <DHT.h>
-  // Change D3 to the pin you've connected your sensor to
-  #define DHTPIN D3
-  // Set DHT11 or DHT22 accordingly
-  #define DHTTYPE DHT11
-  DHT dht(DHTPIN, DHTTYPE);
-#endif
-*/
 
 /*+--------------------------------------------------------------------------------------+
  *| namespace Duino-Coin heritage                                                        |
@@ -729,12 +705,6 @@ void dashboard() {
   s.replace("@@ID@@", String(RIG_IDENTIFIER));
   s.replace("@@MEMORY@@", String(ESP.getFreeHeap()));
   s.replace("@@VERSION@@", String(MINER_VER));
-/*
-#ifdef USE_DHT
-  s.replace("@@TEMP@@", String(temp));
-  s.replace("@@HUM@@", String(hum));
-#endif
-*/
   server.send(200, "text/html", s);
 }
 
@@ -792,16 +762,7 @@ void setup() {
       timeClient.begin();  
   #endif
   
-  /*
-  #ifdef USE_DHT
-    Serial.println("Initializing DHT sensor");
-    dht.begin();
-    Serial.println("Test reading: " + String(dht.readHumidity()) + "% humidity");
-    Serial.println("Test reading: temperature " + String(dht.readTemperature()) + "*C");
-  #endif
-  */
-
-  // Autogenerate ID if required
+   // Autogenerate ID if required
   chipID = String(ESP.getChipId(), HEX);
   
   if(strcmp(RIG_IDENTIFIER, "Auto") == 0 ){
@@ -878,28 +839,7 @@ void loop() {
                  String(MINER_KEY) + END_TOKEN);
   #endif
   
-  /*
-  #ifdef USE_DHT
-    float newTemp = dht.readTemperature();
-    float newHum = dht.readHumidity();
-    if ((temp >= temp_min_value) && (temp <= temp_max_value)) {
-      if ((newTemp >= temp_min_value) && (newTemp <= temp_max_value)) {
-        newTemp = temp_weight * newTemp + (1.0f - temp_weight) * temp; // keep weighted measurement value
-      } else {
-        newTemp = temp; // keep current temp
-      }
-    } // else - keep newTemp as is
-
-    if ((hum >= hum_min_value) && (hum <= hum_max_value)) {
-      if ((newHum >= hum_min_value) && (newHum <= hum_max_value)) {
-        newHum = hum_weight * newHum + (1.0 - hum_weight) * hum; // keep weighted measurement value
-      } else {
-        newHum = hum; // keep current hum
-      }
-    } // else - keep newHum as is
-  #endif
-  */
-  
+   
   #ifdef USE_MQTT
   
   if (!mqttClient.connected()) {
@@ -929,18 +869,7 @@ void loop() {
 
   #endif
   
-  /*
-  #ifdef USE_DHT
-
-    Serial.println("DHT readings: " + String(temp) + "*C, " + String(hum) + "%");
-    client.print("JOB," + 
-                 String(USERNAME) + SEP_TOKEN +
-                 String(START_DIFF) + SEP_TOKEN +
-                 String(MINER_KEY) + SEP_TOKEN +
-                 String(temp) + "@" + String(hum) + END_TOKEN);
-  #endif
-  */
-
+ 
   waitForClientData();
   String last_block_hash = getValue(client_buffer, SEP_TOKEN, 0);
   String expected_hash = getValue(client_buffer, SEP_TOKEN, 1);
@@ -1018,7 +947,4 @@ void loop() {
   Serial.println("battLevel_non_filtered: " + String(battLevel_non_filtered));
   Serial.println("battLevel_filtered:     " + String(battLevel_filtered));
   
-  #ifdef USE_MQTT
-    SerializeAndPublish();
-  #endif
-}
+ }
