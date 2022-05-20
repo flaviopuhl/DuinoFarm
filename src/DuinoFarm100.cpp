@@ -89,56 +89,10 @@ Notes:
 #include <WiFiClient.h>
 #include <Ticker.h>
 #include <ESP8266WebServer.h>
+#include <PubSubClient.h>
 
 // Uncomment the line below if you wish to register for IOT updates with an MQTT broker
 // #define USE_MQTT
-
-
-#ifdef USE_MQTT
-  #include <PubSubClient.h>
-  // update below mqtt broker parameters
-  #define mqtt_server "your_mqtt_server"
-  #define mqtt_port 1883
-  #define mqtt_user "your_mqtt_username"
-  #define mqtt_password "your_super_secret_mqtt_password"
-  #define mqtt_temperature_delta_time 900000
-
-  // update humidity_topic to your mqtt humidity topic
-  #define humidity_topic "sensor/humidity"
-  // update temperature_topic to your mqtt temperature topic
-  #define temperature_topic "sensor/temperature"
-  
-  WiFiClient espClient;
-  PubSubClient mqttClient(espClient);
-
-  void mqttReconnect() {
-    // Loop until we're reconnected
-    while (!mqttClient.connected()) {
-      Serial.print("Attempting MQTT connection...");
-      // Attempt to connect
-      // If you do not want to use a username and password, change next line to
-      // if (mqttClient.connect("ESP8266Client")) {
-      if (mqttClient.connect("ESP8266Client", mqtt_user, mqtt_password)) {
-        Serial.println("connected");
-      } else {
-        Serial.print("failed, rc=");
-        Serial.print(mqttClient.state());
-        Serial.println(" try again in 5 seconds");
-        // Wait 5 seconds before retrying
-        delay(5000);
-      }
-    }
-  }
-  
-  bool checkBound(float newValue, float prevValue, float maxDiff) {
-    return !isnan(newValue) &&
-           (newValue < prevValue - maxDiff || newValue > prevValue + maxDiff);
-  }
-  
-  long lastMsg = 0;
-  float diff = 0.01; // change this to the minimum difference considered for update
-
-#endif
 
 
 
@@ -488,7 +442,8 @@ void RestartESP(String msg) {
 
 // Our new WDT to help prevent freezes
 // code concept taken from https://sigmdel.ca/michel/program/esp8266/arduino/watchdogs2_en.html
-void ICACHE_RAM_ATTR lwdtcb(void) {
+//void ICACHE_RAM_ATTR lwdtcb(void) {
+void IRAM_ATTR lwdtcb(void) {  
   if ((millis() - lwdCurrentMillis > LWD_TIMEOUT) || (lwdTimeOutMillis - lwdCurrentMillis != LWD_TIMEOUT))
     RestartESP("Loop WDT Failed!");
 }
@@ -589,12 +544,7 @@ void setup() {
   Serial.println("\nDuino-Coin " + String(MINER_VER));
   pinMode(LED_BUILTIN, OUTPUT);
 
-  #ifdef USE_MQTT
-    mqttClient.setServer(mqtt_server, mqtt_port);
-  #endif
-  
-  
-
+ 
   // Autogenerate ID if required
   chipID = String(ESP.getChipId(), HEX);
   
@@ -650,18 +600,6 @@ void loop() {
               String(USERNAME) + SEP_TOKEN +
               String(START_DIFF) + SEP_TOKEN +
               String(MINER_KEY) + END_TOKEN);
-   
-  
-  #ifdef USE_MQTT
-  
-  if (!mqttClient.connected()) {
-    mqttReconnect();
-  }
-  mqttClient.loop();
-    
-
-  #endif
-  
   
 
   waitForClientData();
