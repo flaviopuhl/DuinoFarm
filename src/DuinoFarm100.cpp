@@ -57,7 +57,6 @@ Notes:
 /*+--------------------------------------------------------------------------------------+
  *| Libraries                                                                            |
  *+--------------------------------------------------------------------------------------+ */
-// Libraries built into IDE
 /* If optimizations cause problems, change them to -O0 (the default)
   NOTE: For even better optimizations also edit your Crypto.h file.
   On linux that file can be found in the following location:
@@ -90,77 +89,37 @@ Notes:
 #include <WiFiClient.h>
 #include <Ticker.h>
 #include <ESP8266WebServer.h>
-#include <NTPClient.h>
 
 // Uncomment the line below if you wish to register for IOT updates with an MQTT broker
 // #define USE_MQTT
 
-/*+--------------------------------------------------------------------------------------+
- *| Global Variables                                                                     |
- *+--------------------------------------------------------------------------------------+ */
-
-  float uptime = 0;
-
-  float battLevel_non_filtered 		= 0;		
-  float battLevel_filtered 		= 0;			  //	Filtered signal
-  float battLevel_filtered_prev	= 0;			// 	Filtered signal from previous interation
-
-/*+--------------------------------------------------------------------------------------+
- *| MQTT constants                                                                       |
- *+--------------------------------------------------------------------------------------+ */
+// Uncomment the line below if you wish to use a DHT sensor (Duino IoT beta)
+// #define USE_DHT
 
 #ifdef USE_MQTT
   #include <PubSubClient.h>
   // update below mqtt broker parameters
-
-  const char *ID = "DuinoFarmDev";                        // Name of our device, must be unique
-  const char *TOPIC = "DuinoFarm/data";                   // Topic to subcribe to
-  //const char* BROKER_MQTT = "mqtt.eclipseprojects.io";  // MQTT Cloud Broker URL
-  const char* BROKER_MQTT = "broker.hivemq.com";
-
-  //#define mqtt_server "broker.hivemq.com"
-  //#define mqtt_port 1883
-  //#define mqtt_user "your_mqtt_username"
-  //#define mqtt_password "your_super_secret_mqtt_password"
-  //#define mqtt_temperature_delta_time 900000
+  #define mqtt_server "your_mqtt_server"
+  #define mqtt_port 1883
+  #define mqtt_user "your_mqtt_username"
+  #define mqtt_password "your_super_secret_mqtt_password"
+  #define mqtt_temperature_delta_time 900000
 
   // update humidity_topic to your mqtt humidity topic
-  //#define humidity_topic "sensor/humidity"
+  #define humidity_topic "sensor/humidity"
   // update temperature_topic to your mqtt temperature topic
-  //#define temperature_topic "sensor/temperature"
+  #define temperature_topic "sensor/temperature"
   
-  //WiFiClient espClient;
-  //PubSubClient mqttClient(espClient);
-  
-  WiFiClient wclient;
-  PubSubClient client(wclient);                         // Setup MQTT client
+  WiFiClient espClient;
+  PubSubClient mqttClient(espClient);
 
-/*+--------------------------------------------------------------------------------------+
- *| Reconnect to MQTT client                                                             |
- *+--------------------------------------------------------------------------------------+ */
- 
   void mqttReconnect() {
-
-    while (!client.connected()) {                       /* Loop until we're reconnected */
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect(ID)) {
-      Serial.println("connected");
-      Serial.print("Publishing to: ");
-      Serial.println(TOPIC);
-      Serial.println('\n');
-
-    } else {
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-      setup_wifi();
-    }
-  }
     // Loop until we're reconnected
-    /*while (!mqttClient.connected()) {
+    while (!mqttClient.connected()) {
       Serial.print("Attempting MQTT connection...");
       // Attempt to connect
+      // If you do not want to use a username and password, change next line to
+      // if (mqttClient.connect("ESP8266Client")) {
       if (mqttClient.connect("ESP8266Client", mqtt_user, mqtt_password)) {
         Serial.println("connected");
       } else {
@@ -170,64 +129,38 @@ Notes:
         // Wait 5 seconds before retrying
         delay(5000);
       }
-    }*/
-
+    }
   }
-
-/*+--------------------------------------------------------------------------------------+
- *| Serialize JSON and publish MQTT                                                      |
- *+--------------------------------------------------------------------------------------+ */
-
-void SerializeAndPublish() {
-
-  if (!client.connected())                            /* Reconnect if connection to MQTT is lost */
-  {    reconnect();      }
-
-  client.loop();                                      /* MQTT */
-
-  char buff[10];                                      /* Buffer to allocate decimal to string conversion */
-  char buffer[256];                                   /* JSON serialization */
   
-    StaticJsonDocument<256> doc;                      /* See ArduinoJson Assistant V6 */
-    
-      doc["Device"] = "DuinoFarmMaster";
-      doc["Version"] = "DuinoFarm100";
-      doc["RSSI (db)"] = WiFi.RSSI();
-      doc["IP"] = WiFi.localIP();
-      doc["LastRoll"] = DateAndTime();
-      doc["UpTime (h)"] = uptime;
-
-      doc["Hashrate"] = String(hashrate / 1000);
-      doc["Difficulty"] = String(difficulty / 1000);
-      doc["SahreCount"] = String(share_count);
-      doc["BattLevel"] = String(battLevel_filtered);
-    
-    serializeJson(doc, buffer);
-      Serial.println("JSON Payload:");
-    serializeJsonPretty(doc, Serial);                 /* Print JSON payload on Serial port */        
-      Serial.println("");
-                         
-      Serial.println("Sending message to MQTT topic");
-    client.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
-      Serial.println("");
-
-}
-
+  bool checkBound(float newValue, float prevValue, float maxDiff) {
+    return !isnan(newValue) &&
+           (newValue < prevValue - maxDiff || newValue > prevValue + maxDiff);
+  }
   
-  //bool checkBound(float newValue, float prevValue, float maxDiff) {
-  //  return !isnan(newValue) &&
-  //         (newValue < prevValue - maxDiff || newValue > prevValue + maxDiff);
-  //}
-  
-  //long lastMsg = 0;
-  //float diff = 0.01; // change this to the minimum difference considered for update
+  long lastMsg = 0;
+  float diff = 0.01; // change this to the minimum difference considered for update
 
 #endif
 
-
-/*+--------------------------------------------------------------------------------------+
- *| namespace Duino-Coin heritage                                                        |
- *+--------------------------------------------------------------------------------------+ */
+#ifdef USE_DHT
+  
+  float temp = 0.0;
+  float hum = 0.0;
+  float temp_weight = 0.3; // 1 for absolute new value, 0-1 for smoothing the new reading with previous value
+  float temp_min_value = -20.0;
+  float temp_max_value = 70.0;
+  float hum_weight = 0.3; // 1 for absolute new value, 0-1 for smoothing the new reading with previous value
+  float hum_min_value = 0.1;
+  float hum_max_value = 100.0;
+    
+  // Install "DHT sensor library" if you get an error
+  #include <DHT.h>
+  // Change D3 to the pin you've connected your sensor to
+  #define DHTPIN D3
+  // Set DHT11 or DHT22 accordingly
+  #define DHTTYPE DHT11
+  DHT dht(DHTPIN, DHTTYPE);
+#endif
 
 namespace {
 // Change the part in brackets to your WiFi name
@@ -243,7 +176,7 @@ const char* MINER_KEY = "None";
 // Change false to true if using 160 MHz clock mode to not get the first share rejected
 const bool USE_HIGHER_DIFF = true;
 // Change true to false if you don't want to host the dashboard page
-const bool WEB_DASHBOARD = true;
+const bool WEB_DASHBOARD = false;
 // Change false to true if you want to update hashrate in browser without reloading page
 const bool WEB_HASH_UPDATER = false;
 // Change true to false if you want to disable led blinking(But the LED will work in the beginning until esp connects to the pool)
@@ -262,10 +195,6 @@ float hashrate = 0;
 String AutoRigName = "";
 String host = "";
 String node_id = "";
-
-/*+--------------------------------------------------------------------------------------+
- *| Webserver                                                                            |
- *+--------------------------------------------------------------------------------------+ */
 
 const char WEBSITE[] PROGMEM = R"=====(
 <!DOCTYPE html>
@@ -379,7 +308,6 @@ const char WEBSITE[] PROGMEM = R"=====(
                                 </div>
                             </div>
 )====="
-/*
 #ifdef USE_DHT
 "                            <div class=\"column\" style=\"min-width:15em\">"
 "                                <div class=\"title is-size-5 mb-0\">"
@@ -398,7 +326,6 @@ const char WEBSITE[] PROGMEM = R"=====(
 "                                </div>"
 "                            </div>"
 #endif
-*/
   R"=====(
                         </div>
                     </div>
@@ -530,34 +457,29 @@ unsigned long lwdTimeOutMillis = LWD_TIMEOUT;
 #define BLINK_CLIENT_CONNECT 3
 #define BLINK_RESET_DEVICE   5
 
-/*+--------------------------------------------------------------------------------------+
- *| Wifi connect                                                                         |
- *+--------------------------------------------------------------------------------------+ */
-
-void setup_wifi() {
-  Serial.print("\nConnecting to ");
-  Serial.println(SSID);
-    WiFi.mode(WIFI_STA);                            // Setup ESP in client mode
-    WiFi.setSleepMode(WIFI_NONE_SLEEP);
-    WiFi.begin(SSID, PASSWORD);
+void SetupWifi() {
+  Serial.println("Connecting to: " + String(SSID));
+  WiFi.mode(WIFI_STA); // Setup ESP in client mode
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  WiFi.begin(SSID, PASSWORD);
 
   int wait_passes = 0;
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    if (++wait_passes >= 20) { ESP.restart(); }     // Restart in case of no wifi connection 
+    if (++wait_passes >= 10) {
+      WiFi.begin(SSID, PASSWORD);
+      wait_passes = 0;
+    }
   }
-  
+
+  Serial.println("\n\nnSuccessfully connected to WiFi");
+  Serial.println("Local IP address: " + WiFi.localIP().toString());
+  Serial.println("Rig name: " + String(RIG_IDENTIFIER));
   Serial.println();
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
 
+  UpdatePool();
 }
-
-/*+--------------------------------------------------------------------------------------+
- *| OTA                                                                                  |
- *+--------------------------------------------------------------------------------------+ */
 
 void SetupOTA() {
   // Prepare OTA handler
@@ -583,10 +505,6 @@ void SetupOTA() {
   ArduinoOTA.begin();
 }
 
-/*+--------------------------------------------------------------------------------------+
- *| Blink method                                                                         |
- *+--------------------------------------------------------------------------------------+ */
-
 void blink(uint8_t count, uint8_t pin = LED_BUILTIN) {
   if (LED_BLINKING){
     uint8_t state = HIGH;
@@ -598,20 +516,12 @@ void blink(uint8_t count, uint8_t pin = LED_BUILTIN) {
   }
 }
 
-/*+--------------------------------------------------------------------------------------+
- *| Restart Method                                                                       |
- *+--------------------------------------------------------------------------------------+ */
-
 void RestartESP(String msg) {
   Serial.println(msg);
   Serial.println("Restarting ESP...");
   blink(BLINK_RESET_DEVICE);
   ESP.reset();
 }
-
-/*+--------------------------------------------------------------------------------------+
- *| Watchdog                                                                             |
- *+--------------------------------------------------------------------------------------+ */
 
 // Our new WDT to help prevent freezes
 // code concept taken from https://sigmdel.ca/michel/program/esp8266/arduino/watchdogs2_en.html
@@ -705,64 +615,32 @@ void dashboard() {
   s.replace("@@ID@@", String(RIG_IDENTIFIER));
   s.replace("@@MEMORY@@", String(ESP.getFreeHeap()));
   s.replace("@@VERSION@@", String(MINER_VER));
+#ifdef USE_DHT
+  s.replace("@@TEMP@@", String(temp));
+  s.replace("@@HUM@@", String(hum));
+#endif
   server.send(200, "text/html", s);
 }
 
 } // namespace
-
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
-
-/*+--------------------------------------------------------------------------------------+
- *| Get Date & Time                                                                      |
- *+--------------------------------------------------------------------------------------+ */
- 
-String DateAndTime(){
-
-    timeClient.setTimeOffset(-10800);                       // Set offset time in seconds to adjust for your timezone, for example:
-                                                            // GMT +1 = 3600
-                                                            // GMT +8 = 28800
-                                                            // GMT -1 = -3600
-                                                            // GMT 0 = 0
-    while(!timeClient.update()) {
-      timeClient.forceUpdate();
-    }
-
-  time_t epochTime = timeClient.getEpochTime();              // The time_t type is just an integer. 
-                                                             // It is the number of seconds since the Epoch.
-  struct tm * tm = localtime(&epochTime);
-  char dts[22];
-    strftime(dts, sizeof(dts), "%d%b%Y %H-%M-%S", tm);       // https://www.cplusplus.com/reference/ctime/strftime/
-  
-  return dts;
- 
-}
-
-/*+--------------------------------------------------------------------------------------+
- *| Setup                                                                                |
- *+--------------------------------------------------------------------------------------+ */
-
-const int enableNext = 5;           // Declare GPIO5 as "enableNext". This pin shall be connected to EN pin of next ESP8266
 
 void setup() {
   Serial.begin(115200);
   Serial.println("\nDuino-Coin " + String(MINER_VER));
   pinMode(LED_BUILTIN, OUTPUT);
 
-    
-  pinMode(enableNext, OUTPUT);      // initialize the pin as an output
-  digitalWrite(enableNext, LOW);    // Keeps next ESP8266 disabled
-
   #ifdef USE_MQTT
-    //mqttClient.setServer(mqtt_server, mqtt_port);
-    Serial.println("Broker MQTT setting server.. ");
-      client.setServer(BROKER_MQTT, 1883);
-
-    Serial.println("Starting timeclient server.. "); 
-      timeClient.begin();  
+    mqttClient.setServer(mqtt_server, mqtt_port);
   #endif
   
-   // Autogenerate ID if required
+  #ifdef USE_DHT
+    Serial.println("Initializing DHT sensor");
+    dht.begin();
+    Serial.println("Test reading: " + String(dht.readHumidity()) + "% humidity");
+    Serial.println("Test reading: temperature " + String(dht.readTemperature()) + "*C");
+  #endif
+
+  // Autogenerate ID if required
   chipID = String(ESP.getChipId(), HEX);
   
   if(strcmp(RIG_IDENTIFIER, "Auto") == 0 ){
@@ -771,12 +649,7 @@ void setup() {
     RIG_IDENTIFIER = AutoRigName.c_str();
   }
 
-  setup_wifi();
-    Serial.println("Rig name: " + String(RIG_IDENTIFIER));
-    Serial.println();
-
-    UpdatePool();
-
+  SetupWifi();
   SetupOTA();
 
   lwdtFeed();
@@ -800,22 +673,9 @@ void setup() {
   }
 
   blink(BLINK_SETUP_COMPLETE);
-  digitalWrite(enableNext, HIGH);    // Enables next ESP8266
-
-  #ifdef USE_MQTT
-    Serial.print("Initial MQTT publish .. "); 
-      SerializeAndPublish();  
-  #endif 
 }
 
-/*+--------------------------------------------------------------------------------------+
- *| Main Loop                                                                            |
- *+--------------------------------------------------------------------------------------+ */ 
-
 void loop() {
-  
-  uptime = millis()/3600000;                          // Update uptime 
-
   br_sha1_context sha1_ctx, sha1_ctx_base;
   uint8_t hashArray[20];
   String duco_numeric_result_str;
@@ -831,22 +691,38 @@ void loop() {
   ConnectToServer();
   Serial.println("Asking for a new job for user: " + String(USERNAME));
 
-  
   #ifndef USE_DHT
     client.print("JOB," + 
                  String(USERNAME) + SEP_TOKEN +
                  String(START_DIFF) + SEP_TOKEN +
                  String(MINER_KEY) + END_TOKEN);
   #endif
+  #ifdef USE_DHT
+    float newTemp = dht.readTemperature();
+    float newHum = dht.readHumidity();
+    if ((temp >= temp_min_value) && (temp <= temp_max_value)) {
+      if ((newTemp >= temp_min_value) && (newTemp <= temp_max_value)) {
+        newTemp = temp_weight * newTemp + (1.0f - temp_weight) * temp; // keep weighted measurement value
+      } else {
+        newTemp = temp; // keep current temp
+      }
+    } // else - keep newTemp as is
+
+    if ((hum >= hum_min_value) && (hum <= hum_max_value)) {
+      if ((newHum >= hum_min_value) && (newHum <= hum_max_value)) {
+        newHum = hum_weight * newHum + (1.0 - hum_weight) * hum; // keep weighted measurement value
+      } else {
+        newHum = hum; // keep current hum
+      }
+    } // else - keep newHum as is
+  #endif
   
-   
   #ifdef USE_MQTT
   
   if (!mqttClient.connected()) {
     mqttReconnect();
   }
   mqttClient.loop();
-    /*
     #ifdef USE_DHT
     if (checkBound(newTemp, temp, diff)) {
       temp = newTemp;
@@ -865,11 +741,19 @@ void loop() {
       mqttClient.publish(humidity_topic, String(hum).c_str(), true); 
     }
     #endif
-    */
 
   #endif
   
- 
+  #ifdef USE_DHT
+
+    Serial.println("DHT readings: " + String(temp) + "*C, " + String(hum) + "%");
+    client.print("JOB," + 
+                 String(USERNAME) + SEP_TOKEN +
+                 String(START_DIFF) + SEP_TOKEN +
+                 String(MINER_KEY) + SEP_TOKEN +
+                 String(temp) + "@" + String(hum) + END_TOKEN);
+  #endif
+
   waitForClientData();
   String last_block_hash = getValue(client_buffer, SEP_TOKEN, 0);
   String expected_hash = getValue(client_buffer, SEP_TOKEN, 1);
@@ -932,19 +816,4 @@ void loop() {
       delay(0);
     }
   }
-
-/*+--------------------------------------------------------------------------------------+
- *| Battery management                                                                   |
- *+--------------------------------------------------------------------------------------+ */
-
-  float alpha 				= 0.2;			                                        //	Filter coefficient.  1 means no filter. As lower the value, more filtered is the signal
-  battLevel_non_filtered = analogRead(A0);	                              // Read the battery voltage
-  
-  battLevel_filtered = alpha * battLevel_non_filtered + (1-alpha) * battLevel_filtered_prev;  // First-order filter
-      
-  battLevel_filtered_prev = battLevel_filtered;
-
-  Serial.println("battLevel_non_filtered: " + String(battLevel_non_filtered));
-  Serial.println("battLevel_filtered:     " + String(battLevel_filtered));
-  
- }
+}
