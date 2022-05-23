@@ -11,7 +11,7 @@
  Date:     May 2022
  Author:   Flavio L Puhl Jr <flavio_puhl@hotmail.com> 
  GIT:      
- About:    DuinoCoin + MQTT publsih powered by solar panel 
+ About:    DuinoCoin + MQTT publsih + DuinoCoin API get
  
 Update comments                                      
 +-----------------------------------------------------+------------------+---------------+
@@ -43,8 +43,8 @@ Upload settings
 |  - tool-esptoolpy 1.30000.201119 (3.0.0)                                               |
 |  - toolchain-xtensa 2.100300.210717 (10.3.0)                                           |
 |                                                                                        |
-| RAM:   [====      ]  37.6% (used 30796 bytes from 81920 bytes)                         |
-| Flash: [====      ]  44.2% (used 461641 bytes from 1044464 bytes)                      |
+| RAM:   [====      ]  39.6% (used 32464 bytes from 81920 bytes)                         |
+| Flash: [=====     ]  45.2% (used 472044 bytes from 1044464 bytes)                      |
 +----------------------------------------------------------------------------------------+
 
 Notes:
@@ -89,12 +89,49 @@ Notes:
 #include <WiFiClient.h>
 #include <Ticker.h>
 #include <ESP8266WebServer.h>
+
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+#include <ESP8266HTTPClient.h>                         // API access
 
 // Uncomment the line below if you wish to register for IOT updates with an MQTT broker
-// #define USE_MQTT
+#define USE_MQTT
 
+/*+--------------------------------------------------------------------------------------+
+ *| Constants declaration                                                                |
+ *+--------------------------------------------------------------------------------------+ */
 
+#ifdef USE_MQTT
+  const char *ID = "DuinoFarmDev";                        // Name of our device, must be unique
+  const char *TOPIC = "DuinoFarm/data";                   // Topic to subcribe to
+  //const char* BROKER_MQTT = "mqtt.eclipseprojects.io";  // MQTT Cloud Broker URL
+  const char* BROKER_MQTT = "broker.hivemq.com";
+
+  String swversion = __FILE__;
+
+  WiFiUDP ntpUDP;
+  NTPClient timeClient(ntpUDP);
+
+  WiFiClient wclient;
+  PubSubClient pubclient(wclient);                         // Setup MQTT client
+#endif
+
+/*+--------------------------------------------------------------------------------------+
+ *| Global Variables                                                                     |
+ *+--------------------------------------------------------------------------------------+ */
+
+ float uptime = 0;
+ double result_balance_balance = 0;
+ int total_miners = 0;
+ double result_total_hashrate = 0;
+ unsigned long loop1 = 0;                             // stores the value of millis() in each iteration of loop()
+
+/*+--------------------------------------------------------------------------------------+
+ *| Namespace                                                                            |
+ *+--------------------------------------------------------------------------------------+ */
 
 namespace {
 // Change the part in brackets to your WiFi name
@@ -374,6 +411,10 @@ unsigned long lwdTimeOutMillis = LWD_TIMEOUT;
 #define BLINK_CLIENT_CONNECT 3
 #define BLINK_RESET_DEVICE   5
 
+/*+--------------------------------------------------------------------------------------+
+ *| Connect to WiFi network                                                              |
+ *+--------------------------------------------------------------------------------------+ */
+
 void SetupWifi() {
   Serial.println("Connecting to: " + String(SSID));
   WiFi.mode(WIFI_STA); // Setup ESP in client mode
@@ -398,6 +439,10 @@ void SetupWifi() {
   UpdatePool();
 }
 
+/*+--------------------------------------------------------------------------------------+
+ *| OTA                                                                                  |
+ *+--------------------------------------------------------------------------------------+ */
+
 void SetupOTA() {
   // Prepare OTA handler
   ArduinoOTA.onStart([]() {
@@ -421,6 +466,10 @@ void SetupOTA() {
   ArduinoOTA.setHostname(RIG_IDENTIFIER); // Give port a name not just address
   ArduinoOTA.begin();
 }
+
+/*+--------------------------------------------------------------------------------------+
+ *| Blink Method                                                                         |
+ *+--------------------------------------------------------------------------------------+ */
 
 void blink(uint8_t count, uint8_t pin = LED_BUILTIN) {
   if (LED_BLINKING){
@@ -539,6 +588,194 @@ void dashboard() {
 
 } // namespace
 
+#ifdef USE_MQTT
+
+/*+--------------------------------------------------------------------------------------+
+ *| Reconnect to MQTT client                                                             |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+void reconnect() {
+  
+  while (!pubclient.connected()) {                       /* Loop until we're reconnected */
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (pubclient.connect(ID)) {
+      Serial.println("connected");
+      Serial.print("Publishing to: ");
+      Serial.println(TOPIC);
+      Serial.println('\n');
+
+    } else {
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+      SetupWifi();
+    }
+  }
+}
+
+/*+--------------------------------------------------------------------------------------+
+ *| Get Duino Coin API data                                                              |
+ *+--------------------------------------------------------------------------------------+ */
+
+void duinocoinapi(){
+
+//HTTPClient http;                                              //Declare an object of class HTTPClient
+                                                                // Specify OWM API request destination
+//http.begin("http://api.openweathermap.org/data/2.5/onecall?lat=-30.0331&lon=-51.23&exclude=hourly,minutely&units=metric&appid=b4d2a60b9952e3dd9e52a1f1196cabe6");
+
+WiFiClientSecure wificlient;                                    // Works for Plataformio
+wificlient.setInsecure();                                       //https://maakbaas.com/esp8266-iot-framework/logs/https-requests/
+HTTPClient http;
+  http.begin(wificlient, "https://server.duinocoin.com//users/flaviopuhl");
+
+int httpCode = http.GET();                                    // Send the request
+ 
+  if (httpCode > 0) {                                         // Check the returning code
+   String Duinopayload = http.getString();                    // Get the request response payload
+      //Serial.println("input");                              // for debug only
+      //Serial.println(Duinopayload);
+
+  DynamicJsonDocument docdoc(6144);                           // Code from Arduino JSON assistant ( https://arduinojson.org/v6/assistant/ )
+
+  DeserializationError error = deserializeJson(docdoc, Duinopayload);
+
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+     return;
+    }
+  
+JsonObject result = docdoc["result"];
+
+JsonObject result_balance = result["balance"];
+/*double*/ result_balance_balance = result_balance["balance"]; // 8.633020799360171
+//const char* result_balance_created = result_balance["created"]; // "16/09/2021 19:15:13"
+//long result_balance_last_login = result_balance["last_login"]; // 1653077497
+//int result_balance_stake_amount = result_balance["stake_amount"]; // 0
+//int result_balance_stake_date = result_balance["stake_date"]; // 0
+//const char* result_balance_username = result_balance["username"]; // "flaviopuhl"
+//const char* result_balance_verified = result_balance["verified"]; // "yes"
+//const char* result_balance_verified_by = result_balance["verified_by"]; // "Duino admin"
+//int result_balance_verified_date = result_balance["verified_date"]; // 0
+
+total_miners = 0;
+result_total_hashrate = 0;
+for (JsonObject result_miner : result["miners"].as<JsonArray>()) {
+
+  //int result_miner_accepted = result_miner["accepted"]; // 523, 3, 4
+  //const char* result_miner_algorithm = result_miner["algorithm"]; // "DUCO-S1", "DUCO-S1", "DUCO-S1"
+  //int result_miner_diff = result_miner["diff"]; // 900, 2500, 5250
+  double result_miner_hashrate = result_miner["hashrate"]; // 11196.59, 80501, 78379.33333333333
+   result_total_hashrate = result_total_hashrate + result_miner_hashrate;
+  //const char* result_miner_identifier = result_miner["identifier"]; // "duinofarmmaster", "None", "None"
+  // result_miner["it"] is null
+  //int result_miner_ki = result_miner["ki"]; // 1, 1, 2
+  //const char* result_miner_pool = result_miner["pool"]; // "dream-pool-1", "bila-pool-2", "bila-pool-2"
+  //int result_miner_rejected = result_miner["rejected"]; // 0, 0, 0
+  //float result_miner_sharetime = result_miner["sharetime"]; // 0.665, 2.499, 6.609
+  //const char* result_miner_software = result_miner["software"]; // "Official ESP8266 Miner 3.18", "Android ...
+  //const char* result_miner_threadid = result_miner["threadid"]; // "928a42b7", "ee39f877", "3a3f6f8a"
+  //const char* result_miner_username = result_miner["username"]; // "flaviopuhl", "flaviopuhl", ...
+  //const char* result_miner_wd = result_miner["wd"]; // nullptr, "0", "0"
+total_miners++;
+//Serial.print("current_hashrate:");
+//Serial.println(result_miner_hashrate);
+//Serial.print("total_hashrate:");
+//Serial.println(result_total_hashrate);
+
+}
+
+//Serial.print("total_miners:");
+//Serial.println(total_miners);
+
+//for (JsonObject result_transaction : result["transactions"].as<JsonArray>()) {
+
+  //int result_transaction_amount = result_transaction["amount"]; // 200, 200, 300, 1414
+  //const char* result_transaction_datetime = result_transaction["datetime"]; // "22/10/2021 12:52:50", ...
+  //const char* result_transaction_hash = result_transaction["hash"];
+  //long result_transaction_id = result_transaction["id"]; // 123551, 129302, 147604, 274451
+  //const char* result_transaction_memo = result_transaction["memo"]; // "DUCO Exchange transaction  sell ...
+  //const char* result_transaction_recipient = result_transaction["recipient"]; // "coinexchange", ...
+  //const char* result_transaction_sender = result_transaction["sender"]; // "flaviopuhl", "flaviopuhl", ...
+
+//}
+
+  }
+
+
+}
+
+
+/*+--------------------------------------------------------------------------------------+
+ *| Get Date & Time                                                                      |
+ *+--------------------------------------------------------------------------------------+ */
+ 
+String DateAndTime(){
+
+    timeClient.setTimeOffset(-10800);                       // Set offset time in seconds to adjust for your timezone, for example:
+                                                            // GMT +1 = 3600
+                                                            // GMT +8 = 28800
+                                                            // GMT -1 = -3600
+                                                            // GMT 0 = 0
+    while(!timeClient.update()) {
+      timeClient.forceUpdate();
+    }
+
+  time_t epochTime = timeClient.getEpochTime();              // The time_t type is just an integer. 
+                                                             // It is the number of seconds since the Epoch.
+  struct tm * tm = localtime(&epochTime);
+  char dts[22];
+    strftime(dts, sizeof(dts), "%d%b%Y %H-%M-%S", tm);       // https://www.cplusplus.com/reference/ctime/strftime/
+  
+  return dts;
+ 
+}
+
+/*+--------------------------------------------------------------------------------------+
+ *| Serialize JSON and publish MQTT                                                      |
+ *+--------------------------------------------------------------------------------------+ */
+
+void SerializeAndPublish() {
+
+  if (!pubclient.connected())                            /* Reconnect if connection to MQTT is lost */
+  {    reconnect();      }
+
+  pubclient.loop();                                      /* MQTT */
+
+  char buff[20];                                         /* Buffer to allocate decimal to string conversion */
+  char buffer[256];                                      /* JSON serialization */
+  
+    StaticJsonDocument<256> doc;                         /* See ArduinoJson Assistant V6 */
+    
+      doc["Device"] = "DuinoFarmMaster";
+      doc["Version"] = swversion;
+      doc["RSSI (db)"] = WiFi.RSSI();
+      doc["IP"] = WiFi.localIP();
+      doc["LastRoll"] = DateAndTime();
+      doc["UpTime (h)"] = uptime;
+      
+      doc["Total balance"] = dtostrf(result_balance_balance, 15, 6, buff);
+      doc["Total miners"] = dtostrf(total_miners, 2, 0, buff);
+      doc["Total hashrate (kH/s)"] = dtostrf(result_total_hashrate/1000, 4, 0, buff);
+    
+    serializeJson(doc, buffer);
+      Serial.println("JSON Payload:");
+    serializeJsonPretty(doc, Serial);                 /* Print JSON payload on Serial port */        
+      Serial.println("");
+                         
+      Serial.println("Sending message to MQTT topic");
+    pubclient.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
+      Serial.println("");
+
+}
+
+#endif
+
+/*+--------------------------------------------------------------------------------------+
+ *| Setup                                                                                |
+ *+--------------------------------------------------------------------------------------+ */
+
 void setup() {
   Serial.begin(115200);
   Serial.println("\nDuino-Coin " + String(MINER_VER));
@@ -553,6 +790,12 @@ void setup() {
     AutoRigName.toUpperCase();
     RIG_IDENTIFIER = AutoRigName.c_str();
   }
+
+  #ifdef USE_MQTT
+  swversion = (swversion.substring((swversion.indexOf(".")), (swversion.lastIndexOf("\\")) + 1))+" "+__DATE__+" "+__TIME__;   
+   Serial.print("SW version: ");
+   Serial.println(swversion);
+  #endif
 
   SetupWifi();
   SetupOTA();
@@ -578,12 +821,34 @@ void setup() {
   }
 
   blink(BLINK_SETUP_COMPLETE);
+
+  #ifdef USE_MQTT
+    Serial.println("Broker MQTT setting server.. ");	
+    pubclient.setServer(BROKER_MQTT, 1883);                /* MQTT port, unsecure */
+
+    Serial.println("Starting timeclient server.. "); 	
+    timeClient.begin();                                 /* Initialize a NTPClient to get time */
+
+    Serial.println("Duino API data request... ");  
+      duinocoinapi();
+    
+    Serial.print("Initial MQTT publish .. "); 
+      SerializeAndPublish();  
+  #endif
+
 }
+
+/*+--------------------------------------------------------------------------------------+
+ *| Main Loop                                                                            |
+ *+--------------------------------------------------------------------------------------+ */
 
 void loop() {
   br_sha1_context sha1_ctx, sha1_ctx_base;
   uint8_t hashArray[20];
   String duco_numeric_result_str;
+
+  unsigned long currentMillis = millis();             // capture the latest value of millis()
+  uptime = millis()/3600000;                          // Update uptime 
   
   // 1 minute watchdog
   lwdtFeed();
@@ -663,5 +928,21 @@ void loop() {
     else {
       delay(0);
     }
-  }
+  } 
+
+  #ifdef USE_MQTT
+    /*------MQTT loop 10 min ------*/
+     
+    if (currentMillis - loop1 >= 10*60*1000) {        
+
+    Serial.println("Duino API data request... ");  
+      duinocoinapi();
+    
+    Serial.print("MQTT publish ... "); 
+      SerializeAndPublish();    
+
+        loop1 = currentMillis;
+    }    
+  #endif
+
 }
