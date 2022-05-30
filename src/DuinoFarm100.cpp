@@ -116,7 +116,7 @@ Notes:
   NTPClient timeClient(ntpUDP);
 
   WiFiClient wclient;
-  PubSubClient pubclient(wclient);                         // Setup MQTT client
+  PubSubClient client(wclient);                         // Setup MQTT client
 #endif
 
 /*+--------------------------------------------------------------------------------------+
@@ -129,11 +129,6 @@ Notes:
  double result_total_hashrate = 0;
  unsigned long loop1 = 0;                             // stores the value of millis() in each iteration of loop()
 
-/*+--------------------------------------------------------------------------------------+
- *| Namespace                                                                            |
- *+--------------------------------------------------------------------------------------+ */
-
-namespace {
 // Change the part in brackets to your WiFi name
 const char* SSID = "CasaDoTheodoro1";
 // Change the part in brackets to your WiFi password
@@ -167,169 +162,9 @@ String AutoRigName = "";
 String host = "";
 String node_id = "";
 
-const char WEBSITE[] PROGMEM = R"=====(
-<!DOCTYPE html>
-<html>
-<!--
-    Duino-Coin self-hosted dashboard
-    MIT licensed
-    Duino-Coin official 2019-2022
-    https://github.com/revoxhere/duino-coin
-    https://duinocoin.com
--->
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Duino-Coin @@DEVICE@@ dashboard</title>
-    <link rel="stylesheet" href="https://server.duinocoin.com/assets/css/mystyles.css">
-    <link rel="shortcut icon" href="https://github.com/revoxhere/duino-coin/blob/master/Resources/duco.png?raw=true">
-    <link rel="icon" type="image/png" href="https://github.com/revoxhere/duino-coin/blob/master/Resources/duco.png?raw=true">
-</head>
-<body>
-    <section class="section">
-        <div class="container">
-            <h1 class="title">
-                <img class="icon" src="https://github.com/revoxhere/duino-coin/blob/master/Resources/duco.png?raw=true">
-                @@DEVICE@@ <small>(@@ID@@)</small>
-            </h1>
-            <p class="subtitle">
-                Self-hosted, lightweight, official dashboard for your <strong>Duino-Coin</strong> miner
-            </p>
-        </div>
-        <br>
-        <div class="container">
-            <div class="columns">
-                <div class="column">
-                    <div class="box">
-                        <p class="subtitle">
-                            Mining statistics
-                        </p>
-                        <div class="columns is-multiline">
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    <span id="hashratex">@@HASHRATE@@</span>kH/s
-                                </div>
-                                <div class="heading is-size-5">
-                                    Hashrate
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@DIFF@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Difficulty
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@SHARES@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Shares
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@NODE@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Node
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column">
-                    <div class="box">
-                        <p class="subtitle">
-                            Device information
-                        </p>
-                        <div class="columns is-multiline">
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@DEVICE@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Device type
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@ID@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Device ID
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@MEMORY@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Free memory
-                                </div>
-                            </div>
-                            <div class="column" style="min-width:15em">
-                                <div class="title is-size-5 mb-0">
-                                    @@VERSION@@
-                                </div>
-                                <div class="heading is-size-5">
-                                    Miner version
-                                </div>
-                            </div>
-)====="
-
-  R"=====(
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <br>
-            <div class="has-text-centered">
-                <div class="title is-size-6 mb-0">
-                    Hosted on
-                    <a href="http://@@IP_ADDR@@">
-                        http://<b>@@IP_ADDR@@</b>
-                    </a>
-                    &bull;
-                    <a href="https://duinocoin.com">
-                        duinocoin.com
-                    </a>
-                    &bull;
-                    <a href="https://github.com/revoxhere/duino-coin">
-                        github.com/revoxhere/duino-coin
-                    </a>
-                </div>
-            </div>
-        </div>
-        <script>
-            setInterval(function(){
-                getData();
-            }, 3000);
-            
-            function getData() {
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange = function() {
-                    if (this.readyState == 4 && this.status == 200) {
-                        document.getElementById("hashratex").innerHTML = this.responseText;
-                    }
-                };
-                xhttp.open("GET", "hashrateread", true);
-                xhttp.send();
-            }
-        </script>
-    </section>
-</body>
-</html>
-)=====";
-
-ESP8266WebServer server(80);
-
-void hashupdater(){ //update hashrate every 3 sec in browser without reloading page
-  server.send(200, "text/plain", String(hashrate / 1000));
-  Serial.println("Update hashrate on page");
-};
+/*+--------------------------------------------------------------------------------------+
+ *| Duino Coin Methods                                                                   |
+ *+--------------------------------------------------------------------------------------+ */
 
 void UpdateHostPort(String input) {
   // Thanks @ricaun for the code
@@ -346,11 +181,11 @@ void UpdateHostPort(String input) {
 
 String httpGetString(String URL) {
   String payload = "";
-  WiFiClientSecure client;
-  client.setInsecure();
+  WiFiClientSecure dcclient;
+  dcclient.setInsecure();
   HTTPClient http;
   
-  if (http.begin(client, URL)) {
+  if (http.begin(dcclient, URL)) {
     int httpCode = http.GET();
     
     if (httpCode == HTTP_CODE_OK) payload = http.getString();
@@ -388,7 +223,7 @@ void UpdatePool() {
   UpdateHostPort(input);
 }
 
-WiFiClient client;
+WiFiClient dcclient;
 String client_buffer = "";
 String chipID = "";
 String START_DIFF = "";
@@ -533,9 +368,9 @@ String getValue(String data, char separator, int index)
 void waitForClientData(void) {
   client_buffer = "";
 
-  while (client.connected()) {
-    if (client.available()) {
-      client_buffer = client.readStringUntil(END_TOKEN);
+  while (dcclient.connected()) {
+    if (dcclient.available()) {
+      client_buffer = dcclient.readStringUntil(END_TOKEN);
       if (client_buffer.length() == 1 && client_buffer[0] == END_TOKEN)
         client_buffer = "???\n"; // NOTE: Should never happen
 
@@ -546,11 +381,11 @@ void waitForClientData(void) {
 }
 
 void ConnectToServer() {
-  if (client.connected())
+  if (dcclient.connected())
     return;
 
   Serial.println("\n\nConnecting to the Duino-Coin server...");
-  while (!client.connect(host, port));
+  while (!dcclient.connect(host, port));
 
   waitForClientData();
   Serial.println("Connected to the server. Server version: " + client_buffer );
@@ -567,26 +402,6 @@ bool max_micros_elapsed(unsigned long current, unsigned long max_elapsed) {
   return false;
 }
 
-void dashboard() {
-  Serial.println("Handling HTTP client");
-
-  String s = WEBSITE;
-  s.replace("@@IP_ADDR@@", WiFi.localIP().toString());
-  
-  s.replace("@@HASHRATE@@", String(hashrate / 1000));
-  s.replace("@@DIFF@@", String(difficulty / 100));
-  s.replace("@@SHARES@@", String(share_count));
-  s.replace("@@NODE@@", String(node_id));
-
-  s.replace("@@DEVICE@@", String(DEVICE));
-  s.replace("@@ID@@", String(RIG_IDENTIFIER));
-  s.replace("@@MEMORY@@", String(ESP.getFreeHeap()));
-  s.replace("@@VERSION@@", String(MINER_VER));
-
-  server.send(200, "text/html", s);
-}
-
-} // namespace
 
 #ifdef USE_MQTT
 
@@ -595,12 +410,12 @@ void dashboard() {
  *+--------------------------------------------------------------------------------------+ */
  
 void reconnect() {
-  
-  while (!pubclient.connected()) {                       /* Loop until we're reconnected */
+   while (!client.connected()) {                       /* Loop until we're reconnected */
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (pubclient.connect(ID)) {
+    if (client.connect(ID)) {
       Serial.println("connected");
+      Serial.print("ID:  "); Serial.println(ID);
       Serial.print("Publishing to: ");
       Serial.println(TOPIC);
       Serial.println('\n');
@@ -718,9 +533,9 @@ String DateAndTime(){
                                                             // GMT +8 = 28800
                                                             // GMT -1 = -3600
                                                             // GMT 0 = 0
-    while(!timeClient.update()) {
+    //while(!timeClient.update()) {
       timeClient.forceUpdate();
-    }
+    //}
 
   time_t epochTime = timeClient.getEpochTime();              // The time_t type is just an integer. 
                                                              // It is the number of seconds since the Epoch.
@@ -738,13 +553,15 @@ String DateAndTime(){
 
 void SerializeAndPublish() {
 
-  if (!pubclient.connected())                            /* Reconnect if connection to MQTT is lost */
-  {    reconnect();      }
+  if (!client.connected())                            /* Reconnect if connection to MQTT is lost */
+  { reconnect();      
+}
 
-  pubclient.loop();                                      /* MQTT */
+  client.loop();                                      /* MQTT */
 
   char buff[20];                                         /* Buffer to allocate decimal to string conversion */
   char buffer[256];                                      /* JSON serialization */
+  
   
     StaticJsonDocument<256> doc;                         /* See ArduinoJson Assistant V6 */
     
@@ -754,10 +571,10 @@ void SerializeAndPublish() {
       doc["IP"] = WiFi.localIP();
       doc["LastRoll"] = DateAndTime();
       doc["UpTime (h)"] = uptime;
-      
       doc["Total balance"] = dtostrf(result_balance_balance, 15, 6, buff);
       doc["Total miners"] = dtostrf(total_miners, 2, 0, buff);
-      doc["Total hashrate (kH/s)"] = dtostrf(result_total_hashrate/1000, 4, 0, buff);
+      doc["Total hashrate (kH/s)"] = dtostrf(result_total_hashrate/1000, 4, 1, buff);
+    
     
     serializeJson(doc, buffer);
       Serial.println("JSON Payload:");
@@ -765,7 +582,7 @@ void SerializeAndPublish() {
       Serial.println("");
                          
       Serial.println("Sending message to MQTT topic");
-    pubclient.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
+    client.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
       Serial.println("");
 
 }
@@ -805,26 +622,11 @@ void setup() {
   if (USE_HIGHER_DIFF) START_DIFF = "ESP8266H";
   else START_DIFF = "ESP8266";
 
-  if(WEB_DASHBOARD) {
-    if (!MDNS.begin(RIG_IDENTIFIER)) {
-      Serial.println("mDNS unavailable");
-    }
-    MDNS.addService("http", "tcp", 80);
-    Serial.print("Configured mDNS for dashboard on http://" 
-                  + String(RIG_IDENTIFIER)
-                  + ".local (or http://"
-                  + WiFi.localIP().toString()
-                  + ")");
-    server.on("/", dashboard);
-    if (WEB_HASH_UPDATER) server.on("/hashrateread", hashupdater);
-    server.begin();
-  }
-
   blink(BLINK_SETUP_COMPLETE);
 
   #ifdef USE_MQTT
     Serial.println("Broker MQTT setting server.. ");	
-    pubclient.setServer(BROKER_MQTT, 1883);                /* MQTT port, unsecure */
+    client.setServer(BROKER_MQTT, 1883);                /* MQTT port, unsecure */
 
     Serial.println("Starting timeclient server.. "); 	
     timeClient.begin();                                 /* Initialize a NTPClient to get time */
@@ -853,15 +655,28 @@ void loop() {
   // 1 minute watchdog
   lwdtFeed();
 
+  #ifdef USE_MQTT
+    /*------MQTT loop 10 min ------*/
+    
+    if (currentMillis - loop1 >= 1*60*1000) {        
+
+    Serial.println("Duino API data request... ");  
+      duinocoinapi();
+    
+    Serial.print("MQTT publish ... "); 
+      SerializeAndPublish(); 
+      loop1 = currentMillis;
+    } 
+  #endif
+
   // OTA handlers
   VerifyWifi();
   ArduinoOTA.handle();
-  if(WEB_DASHBOARD) server.handleClient();
-
+  
   ConnectToServer();
   Serial.println("Asking for a new job for user: " + String(USERNAME));
 
-  client.print("JOB," + 
+  dcclient.print("JOB," + 
               String(USERNAME) + SEP_TOKEN +
               String(START_DIFF) + SEP_TOKEN +
               String(MINER_KEY) + END_TOKEN);
@@ -897,7 +712,7 @@ void loop() {
       hashrate = duco_numeric_result / elapsed_time_s;
       share_count++;
       blink(BLINK_SHARE_FOUND);
-      client.print(String(duco_numeric_result)
+      dcclient.print(String(duco_numeric_result)
                    + ","
                    + String(hashrate)
                    + ","
@@ -927,22 +742,10 @@ void loop() {
     }
     else {
       delay(0);
+
+ 
+  
     }
   } 
-
-  #ifdef USE_MQTT
-    /*------MQTT loop 10 min ------*/
-     
-    if (currentMillis - loop1 >= 10*60*1000) {        
-
-    Serial.println("Duino API data request... ");  
-      duinocoinapi();
-    
-    Serial.print("MQTT publish ... "); 
-      SerializeAndPublish();    
-
-        loop1 = currentMillis;
-    }    
-  #endif
 
 }
