@@ -43,8 +43,8 @@ Upload settings
 |  - tool-esptoolpy 1.30000.201119 (3.0.0)                                               |
 |  - toolchain-xtensa 2.100300.210717 (10.3.0)                                           |
 |                                                                                        |
-| RAM:   [====      ]  39.6% (used 32464 bytes from 81920 bytes)                         |
-| Flash: [=====     ]  45.2% (used 472044 bytes from 1044464 bytes)                      |
+| RAM:   [====      ]  39.4% (used 32464 bytes from 81920 bytes)                         |
+| Flash: [=====     ]  45.1% (used 472044 bytes from 1044464 bytes)                      |
 +----------------------------------------------------------------------------------------+
 
 Notes:
@@ -106,7 +106,7 @@ Notes:
 
 #ifdef USE_MQTT
   const char *ID = "DuinoFarmDev";                        // Name of our device, must be unique
-  const char *TOPIC = "DuinoFarm/data";                   // Topic to subcribe to
+  const char *TOPIC = "Duinofarm/data";                   // Topic to subcribe to
   //const char* BROKER_MQTT = "mqtt.eclipseprojects.io";  // MQTT Cloud Broker URL
   const char* BROKER_MQTT = "broker.hivemq.com";
 
@@ -266,7 +266,7 @@ void SetupWifi() {
     }
   }
 
-  Serial.println("\n\nnSuccessfully connected to WiFi");
+  Serial.println("Successfully connected to WiFi");
   Serial.println("Local IP address: " + WiFi.localIP().toString());
   Serial.println("Rig name: " + String(RIG_IDENTIFIER));
   Serial.println();
@@ -435,18 +435,15 @@ void reconnect() {
 
 void duinocoinapi(){
 
-//HTTPClient http;                                              //Declare an object of class HTTPClient
-                                                                // Specify OWM API request destination
-//http.begin("http://api.openweathermap.org/data/2.5/onecall?lat=-30.0331&lon=-51.23&exclude=hourly,minutely&units=metric&appid=b4d2a60b9952e3dd9e52a1f1196cabe6");
-
 WiFiClientSecure wificlient;                                    // Works for Plataformio
 wificlient.setInsecure();                                       //https://maakbaas.com/esp8266-iot-framework/logs/https-requests/
 HTTPClient http;
-  http.begin(wificlient, "https://server.duinocoin.com//users/flaviopuhl");
 
+http.begin(wificlient, "https://server.duinocoin.com//users/" + String(USERNAME));
 int httpCode = http.GET();                                    // Send the request
  
-  if (httpCode > 0) {                                         // Check the returning code
+  if (httpCode > 0) 
+  {                                         // Check the returning code
    String Duinopayload = http.getString();                    // Get the request response payload
       //Serial.println("input");                              // for debug only
       //Serial.println(Duinopayload);
@@ -464,60 +461,21 @@ int httpCode = http.GET();                                    // Send the reques
 JsonObject result = docdoc["result"];
 
 JsonObject result_balance = result["balance"];
-/*double*/ result_balance_balance = result_balance["balance"]; // 8.633020799360171
-//const char* result_balance_created = result_balance["created"]; // "16/09/2021 19:15:13"
-//long result_balance_last_login = result_balance["last_login"]; // 1653077497
-//int result_balance_stake_amount = result_balance["stake_amount"]; // 0
-//int result_balance_stake_date = result_balance["stake_date"]; // 0
-//const char* result_balance_username = result_balance["username"]; // "flaviopuhl"
-//const char* result_balance_verified = result_balance["verified"]; // "yes"
-//const char* result_balance_verified_by = result_balance["verified_by"]; // "Duino admin"
-//int result_balance_verified_date = result_balance["verified_date"]; // 0
+result_balance_balance = result_balance["balance"]; // 8.633020799360171
 
 total_miners = 0;
 result_total_hashrate = 0;
-for (JsonObject result_miner : result["miners"].as<JsonArray>()) {
+    for (JsonObject result_miner : result["miners"].as<JsonArray>()) 
+    {
 
-  //int result_miner_accepted = result_miner["accepted"]; // 523, 3, 4
-  //const char* result_miner_algorithm = result_miner["algorithm"]; // "DUCO-S1", "DUCO-S1", "DUCO-S1"
-  //int result_miner_diff = result_miner["diff"]; // 900, 2500, 5250
-  double result_miner_hashrate = result_miner["hashrate"]; // 11196.59, 80501, 78379.33333333333
-   result_total_hashrate = result_total_hashrate + result_miner_hashrate;
-  //const char* result_miner_identifier = result_miner["identifier"]; // "duinofarmmaster", "None", "None"
-  // result_miner["it"] is null
-  //int result_miner_ki = result_miner["ki"]; // 1, 1, 2
-  //const char* result_miner_pool = result_miner["pool"]; // "dream-pool-1", "bila-pool-2", "bila-pool-2"
-  //int result_miner_rejected = result_miner["rejected"]; // 0, 0, 0
-  //float result_miner_sharetime = result_miner["sharetime"]; // 0.665, 2.499, 6.609
-  //const char* result_miner_software = result_miner["software"]; // "Official ESP8266 Miner 3.18", "Android ...
-  //const char* result_miner_threadid = result_miner["threadid"]; // "928a42b7", "ee39f877", "3a3f6f8a"
-  //const char* result_miner_username = result_miner["username"]; // "flaviopuhl", "flaviopuhl", ...
-  //const char* result_miner_wd = result_miner["wd"]; // nullptr, "0", "0"
-total_miners++;
-//Serial.print("current_hashrate:");
-//Serial.println(result_miner_hashrate);
-//Serial.print("total_hashrate:");
-//Serial.println(result_total_hashrate);
+      double result_miner_hashrate = result_miner["hashrate"]; // 11196.59, 80501, 78379.33333333333
+      result_total_hashrate = result_total_hashrate + result_miner_hashrate;
+      
+      total_miners++;
 
-}
-
-//Serial.print("total_miners:");
-//Serial.println(total_miners);
-
-//for (JsonObject result_transaction : result["transactions"].as<JsonArray>()) {
-
-  //int result_transaction_amount = result_transaction["amount"]; // 200, 200, 300, 1414
-  //const char* result_transaction_datetime = result_transaction["datetime"]; // "22/10/2021 12:52:50", ...
-  //const char* result_transaction_hash = result_transaction["hash"];
-  //long result_transaction_id = result_transaction["id"]; // 123551, 129302, 147604, 274451
-  //const char* result_transaction_memo = result_transaction["memo"]; // "DUCO Exchange transaction  sell ...
-  //const char* result_transaction_recipient = result_transaction["recipient"]; // "coinexchange", ...
-  //const char* result_transaction_sender = result_transaction["sender"]; // "flaviopuhl", "flaviopuhl", ...
-
-//}
+    }
 
   }
-
 
 }
 
@@ -553,19 +511,24 @@ String DateAndTime(){
 
 void SerializeAndPublish() {
 
-  if (!client.connected())                            /* Reconnect if connection to MQTT is lost */
-  { reconnect();      
-}
+  if (client.connected())                            /* Reconnect if connection to MQTT is lost */
+  { Serial.println("MQTT client is connected"); }
+  else
+  { Serial.println("MQTT client is not connected");
+  reconnect(); }
 
-  client.loop();                                      /* MQTT */
+  if(client.loop())                                   /* called regularly to allow the client to process incoming messages and maintain its connection to the server */
+  { Serial.println("MQTT client is still connected"); }
+  else
+  { Serial.println("MQTT client is no longer connected"); }
 
-  char buff[20];                                         /* Buffer to allocate decimal to string conversion */
-  char buffer[256];                                      /* JSON serialization */
+  char buff[20];                                      /* Buffer to allocate decimal to string conversion */
+  char buffer[256];                                   /* JSON serialization */
   
   
     StaticJsonDocument<256> doc;                         /* See ArduinoJson Assistant V6 */
     
-      doc["Device"] = "DuinoFarmMaster";
+      doc["Device"] = String(RIG_IDENTIFIER);
       doc["Version"] = swversion;
       doc["RSSI (db)"] = WiFi.RSSI();
       doc["IP"] = WiFi.localIP();
@@ -581,8 +544,13 @@ void SerializeAndPublish() {
     serializeJsonPretty(doc, Serial);                 /* Print JSON payload on Serial port */        
       Serial.println("");
                          
-      Serial.println("Sending message to MQTT topic");
-    client.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
+      Serial.print("Sending message to MQTT topic ... ");
+    //client.publish(TOPIC, buffer);                    /* Publish data to MQTT Broker */
+      if (client.publish(TOPIC, buffer))                           
+      { Serial.println("publish succeeded"); }
+      else
+      { Serial.println("publish failed, either connection lost or message too large"); }
+      
       Serial.println("");
 
 }
@@ -608,12 +576,6 @@ void setup() {
     RIG_IDENTIFIER = AutoRigName.c_str();
   }
 
-  #ifdef USE_MQTT
-  swversion = (swversion.substring((swversion.indexOf(".")), (swversion.lastIndexOf("\\")) + 1))+" "+__DATE__+" "+__TIME__;   
-   Serial.print("SW version: ");
-   Serial.println(swversion);
-  #endif
-
   SetupWifi();
   SetupOTA();
 
@@ -625,17 +587,24 @@ void setup() {
   blink(BLINK_SETUP_COMPLETE);
 
   #ifdef USE_MQTT
+
+    Serial.println("MQTT enabled...");
+
+    swversion = (swversion.substring((swversion.indexOf(".")), (swversion.lastIndexOf("\\")) + 1))+" "+__DATE__+" "+__TIME__;   
+    Serial.println("SW version: " + swversion);
+
     Serial.println("Broker MQTT setting server.. ");	
+    client.setBufferSize (512);
     client.setServer(BROKER_MQTT, 1883);                /* MQTT port, unsecure */
 
     Serial.println("Starting timeclient server.. "); 	
     timeClient.begin();                                 /* Initialize a NTPClient to get time */
 
     Serial.println("Duino API data request... ");  
-      duinocoinapi();
+    duinocoinapi();
     
     Serial.print("Initial MQTT publish .. "); 
-      SerializeAndPublish();  
+    SerializeAndPublish();  
   #endif
 
 }
@@ -742,9 +711,6 @@ void loop() {
     }
     else {
       delay(0);
-
- 
-  
     }
   } 
 
