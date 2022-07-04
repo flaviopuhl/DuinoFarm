@@ -128,6 +128,8 @@ Notes:
  int total_miners = 0;
  double result_total_hashrate = 0;
  unsigned long loop1 = 0;                             // stores the value of millis() in each iteration of loop()
+ unsigned long loop2 = 0;
+ int ResetCounter = 30; 
 
 // Change the part in brackets to your WiFi name
 const char* SSID = "CasaDoTheodoro1";
@@ -566,6 +568,8 @@ void setup() {
   Serial.println("\nDuino-Coin " + String(MINER_VER));
   pinMode(LED_BUILTIN, OUTPUT);
 
+  pinMode(16, OUTPUT);                // Connect to RST to self-kill.  Need to disconnect in order to upload sketch by serial
+  digitalWrite(16, HIGH);             // HIGH state means no RST    
  
   // Autogenerate ID if required
   chipID = String(ESP.getChipId(), HEX);
@@ -636,6 +640,23 @@ void loop() {
       SerializeAndPublish(); 
       loop1 = currentMillis;
     } 
+
+    /*
+      if (currentMillis - loop2 >= 1000) {        
+
+      Serial.println("Countdown to reset... "+ String(ResetCounter));
+      ResetCounter--;
+
+      if(ResetCounter<=0){
+        digitalWrite(16, LOW);
+      }  else {
+        digitalWrite(16, HIGH);
+      }
+        
+        loop2 = currentMillis;
+      } 
+    */
+   
   #endif
 
   // OTA handlers
